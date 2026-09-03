@@ -70,5 +70,20 @@
                 }
             }
         }
+
+        stage('Switch Traffic') {
+            steps {
+                script {
+                    if (env.TARGET == 'BLUE') {
+                        bat 'powershell -Command "(Get-Content nginx.conf) -replace \\"5002\\",\\"5001\\" | Set-Content nginx.conf"'
+                    } else {
+                        bat 'powershell -Command "(Get-Content nginx.conf) -replace \\"5001\\",\\"5002\\" | Set-Content nginx.conf"'
+                    }
+
+                    bat 'docker exec nginx nginx -t'
+                    bat 'docker exec nginx nginx -s reload'
+                }
+            }
+        }
     }
 }
