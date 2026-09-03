@@ -30,5 +30,11 @@
                 bat 'curl -f http://localhost:5002/'
             }
         }
+ 
+        stage('Detect Active Environment') {
+     steps {
+        bat 'curl http://localhost:8080/'
+    }
+}
     }
 }
