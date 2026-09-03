@@ -1,10 +1,9 @@
  pipeline {
     agent any
 
-    environment {
-        IMAGE = "blue-green-demo:build-${BUILD_NUMBER}"
-        TRAFFIC_SWITCHED = "false"
-    }
+   environment {
+    IMAGE = "blue-green-demo:build-${BUILD_NUMBER}"
+}
 
     stages {
 
@@ -85,28 +84,31 @@
         }
 
         stage('Switch Traffic') {
-            steps {
-                script {
+    steps {
+        script {
 
-                    def nginxConfig = 'C:\\Users\\arunp\\blue-green-demo\\nginx.conf'
+            def nginxConfig = 'C:\\Users\\arunp\\blue-green-demo\\nginx.conf'
 
-                    if (env.TARGET == 'BLUE') {
+            if (env.TARGET == 'BLUE') {
 
-                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5002','5001' | Set-Content '${nginxConfig}'\""
+                bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5002','5001' | Set-Content '${nginxConfig}'\""
 
-                    } else {
+            } else {
 
-                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
+                bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
 
-                    }
-
-                    bat 'docker exec nginx nginx -t'
-                    bat 'docker exec nginx nginx -s reload'
-
-                    env.TRAFFIC_SWITCHED = 'true'
-                }
             }
+
+            bat 'docker exec nginx nginx -t'
+            bat 'docker exec nginx nginx -s reload'
+
+            // Mark that production traffic was successfully switched
+            bat 'echo switched > traffic-switched.flag'
+
+            echo "Traffic successfully switched to ${env.TARGET}"
         }
+    }
+}
 
         stage('Production Verification') {
             steps {
