@@ -3,6 +3,7 @@
 
     environment {
         IMAGE = "blue-green-demo:build-${BUILD_NUMBER}"
+        TRAFFIC_SWITCHED = "false"
     }
 
     stages {
@@ -78,16 +79,85 @@
         stage('Switch Traffic') {
             steps {
                 script {
+
+                    def nginxConfig = 'C:\\Users\\arunp\\blue-green-demo\\nginx.conf'
+
                     if (env.TARGET == 'BLUE') {
-                        bat 'powershell -Command "(Get-Content nginx.conf) -replace \\"5002\\",\\"5001\\" | Set-Content nginx.conf"'
+
+                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5002','5001' | Set-Content '${nginxConfig}'\""
+
                     } else {
-                        bat 'powershell -Command "(Get-Content nginx.conf) -replace \\"5001\\",\\"5002\\" | Set-Content nginx.conf"'
+
+                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
                     }
+
+                    /*
+                     * The configuration file has now been changed.
+                     * Mark traffic as switched so rollback can restore
+                     * the previous environment if anything fails.
+                     */
+                    env.TRAFFIC_SWITCHED = 'true'
 
                     bat 'docker exec nginx nginx -t'
                     bat 'docker exec nginx nginx -s reload'
                 }
             }
+        }
+
+        stage('Production Verification') {
+            steps {
+
+                echo 'Verifying production traffic...'
+
+                bat 'curl -f http://localhost:8080/health'
+                bat 'curl -f http://localhost:8080/'
+
+            }
+        }
+    }
+
+    post {
+
+        failure {
+
+            script {
+
+                if (env.TRAFFIC_SWITCHED == 'true') {
+
+                    echo "Deployment failed."
+                    echo "Starting automatic rollback..."
+                    echo "Restoring previous environment: ${env.ACTIVE}"
+
+                    def nginxConfig = 'C:\\Users\\arunp\\blue-green-demo\\nginx.conf'
+
+                    if (env.ACTIVE == 'BLUE') {
+
+                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5002','5001' | Set-Content '${nginxConfig}'\""
+
+                    } else if (env.ACTIVE == 'GREEN') {
+
+                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
+                    }
+
+                    bat 'docker exec nginx nginx -t'
+                    bat 'docker exec nginx nginx -s reload'
+
+                    echo "Rollback completed."
+                    echo "Production restored to: ${env.ACTIVE}"
+
+                } else {
+
+                    echo "Deployment failed before traffic was switched."
+                    echo "No rollback required."
+
+                }
+            }
+        }
+
+        success {
+
+            echo "Blue-Green deployment completed successfully."
+            echo "Production environment: ${env.TARGET}"
         }
     }
 }
