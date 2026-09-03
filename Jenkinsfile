@@ -83,7 +83,7 @@
             }
         }
 
-        stage('Switch Traffic') {
+       stage('Switch Traffic') {
     steps {
         script {
 
@@ -101,9 +101,6 @@
 
             bat 'docker exec nginx nginx -t'
             bat 'docker exec nginx nginx -s reload'
-
-            // Mark that production traffic was successfully switched
-            bat 'echo switched > traffic-switched.flag'
 
             echo "Traffic successfully switched to ${env.TARGET}"
         }
@@ -127,50 +124,79 @@
         }
     }
 
-    post {
+  post {
 
-        failure {
+    failure {
 
-            script {
+        script {
 
-                if (env.TRAFFIC_SWITCHED == 'true') {
+            def nginxConfig = 'C:\\Users\\arunp\\blue-green-demo\\nginx.conf'
 
-                    echo "Deployment failed."
-                    echo "Starting automatic rollback..."
-                    echo "Restoring previous environment: ${env.ACTIVE}"
+            /*
+             * Check whether Nginx is currently pointing
+             * to the newly deployed environment.
+             */
 
-                    def nginxConfig = 'C:\\Users\\arunp\\blue-green-demo\\nginx.conf'
+            def switchHappened = false
 
-                    if (env.ACTIVE == 'BLUE') {
+            if (env.TARGET == 'BLUE') {
 
-                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5002','5001' | Set-Content '${nginxConfig}'\""
+                def result = bat(
+                    script: "findstr /C:\"5001\" \"${nginxConfig}\"",
+                    returnStatus: true
+                )
 
-                    } else if (env.ACTIVE == 'GREEN') {
+                if (result == 0) {
+                    switchHappened = true
+                }
 
-                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
+            } else if (env.TARGET == 'GREEN') {
 
-                    }
+                def result = bat(
+                    script: "findstr /C:\"5002\" \"${nginxConfig}\"",
+                    returnStatus: true
+                )
 
-                    bat 'docker exec nginx nginx -t'
-                    bat 'docker exec nginx nginx -s reload'
-
-                    echo "Rollback completed."
-                    echo "Production restored to: ${env.ACTIVE}"
-
-                } else {
-
-                    echo "Deployment failed before traffic was switched."
-                    echo "No rollback required."
-
+                if (result == 0) {
+                    switchHappened = true
                 }
             }
+
+            if (switchHappened) {
+
+                echo "Deployment failed after traffic was switched."
+                echo "Starting automatic rollback..."
+                echo "Restoring previous environment: ${env.ACTIVE}"
+
+                if (env.ACTIVE == 'BLUE') {
+
+                    bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5002','5001' | Set-Content '${nginxConfig}'\""
+
+                } else if (env.ACTIVE == 'GREEN') {
+
+                    bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
+
+                }
+
+                bat 'docker exec nginx nginx -t'
+                bat 'docker exec nginx nginx -s reload'
+
+                echo "Rollback completed."
+                echo "Production restored to: ${env.ACTIVE}"
+
+            } else {
+
+                echo "Deployment failed before traffic was switched."
+                echo "No rollback required."
+
+            }
         }
+    }
 
-        success {
+    success {
 
-            echo "Blue-Green deployment completed successfully."
-            echo "Production environment: ${env.TARGET}"
+        echo "Blue-Green deployment completed successfully."
+        echo "Production environment: ${env.TARGET}"
 
-        }
     }
 }
