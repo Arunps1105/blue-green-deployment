@@ -116,6 +116,11 @@ pipeline {
                 bat 'curl -f http://localhost:8080/health'
                 bat 'curl -f http://localhost:8080/'
 
+                /*
+                 * INTENTIONAL FAILURE
+                 * This is only for testing automatic rollback.
+                 */
+                bat 'exit /b 1'
             }
         }
     }
