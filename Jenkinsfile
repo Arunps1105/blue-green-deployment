@@ -1,6 +1,10 @@
  pipeline {
     agent any
 
+    environment {
+        IMAGE = "blue-green-demo:build-${BUILD_NUMBER}"
+    }
+
     stages {
 
         stage('Checkout') {
@@ -39,7 +43,7 @@
             steps {
                 bat 'where docker'
                 bat 'docker version'
-                bat 'docker build -t blue-green-demo:v2 .'
+                bat 'docker build -t %IMAGE% .'
             }
         }
 
@@ -48,10 +52,10 @@
                 script {
                     if (env.TARGET == 'BLUE') {
                         bat 'docker rm -f blue 2>NUL || exit 0'
-                        bat 'docker run -d --name blue -p 5001:5000 blue-green-demo:v2'
+                        bat 'docker run -d --name blue -p 5001:5000 %IMAGE%'
                     } else {
                         bat 'docker rm -f green 2>NUL || exit 0'
-                        bat 'docker run -d --name green -p 5002:5000 blue-green-demo:v2'
+                        bat 'docker run -d --name green -p 5002:5000 %IMAGE%'
                     }
                 }
             }
