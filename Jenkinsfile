@@ -1,4 +1,4 @@
-pipeline {
+ pipeline {
     agent any
 
     stages {
@@ -11,6 +11,8 @@ pipeline {
 
         stage('Build') {
             steps {
+                bat 'where docker'
+                bat 'docker version'
                 bat 'docker build -t blue-green-demo:v2 .'
             }
         }
@@ -28,6 +30,5 @@ pipeline {
                 bat 'curl -f http://localhost:5002/'
             }
         }
-
     }
 }
