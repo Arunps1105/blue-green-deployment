@@ -1,4 +1,4 @@
- pipeline {
+pipeline {
     agent any
 
     environment {
@@ -16,17 +16,18 @@
         stage('Detect Active Environment') {
             steps {
                 script {
+
                     def response = bat(
-                        script: 'curl -s http://localhost:8080/',
+                        script: 'curl -s http://localhost:8080/version',
                         returnStdout: true
                     ).trim()
 
-                    echo "Production response: ${response}"
+                    echo "Production version response: ${response}"
 
-                    if (response.contains('GREEN')) {
+                    if (response.contains('"environment":"GREEN"')) {
                         env.ACTIVE = 'GREEN'
                         env.TARGET = 'BLUE'
-                    } else if (response.contains('BLUE')) {
+                    } else if (response.contains('"environment":"BLUE"')) {
                         env.ACTIVE = 'BLUE'
                         env.TARGET = 'GREEN'
                     } else {
@@ -50,12 +51,18 @@
         stage('Deploy Target') {
             steps {
                 script {
+
                     if (env.TARGET == 'BLUE') {
+
                         bat 'docker rm -f blue 2>NUL || exit 0'
-                        bat 'docker run -d --name blue -p 5001:5000 %IMAGE%'
+
+                        bat 'docker run -d --name blue -p 5001:5000 -e ENVIRONMENT=BLUE %IMAGE%'
+
                     } else {
+
                         bat 'docker rm -f green 2>NUL || exit 0'
-                        bat 'docker run -d --name green -p 5002:5000 %IMAGE%'
+
+                        bat 'docker run -d --name green -p 5002:5000 -e ENVIRONMENT=GREEN %IMAGE%'
                     }
                 }
             }
@@ -64,12 +71,18 @@
         stage('Smoke Test') {
             steps {
                 script {
+
                     if (env.TARGET == 'BLUE') {
+
                         bat 'curl -f http://localhost:5001/health'
                         bat 'curl -f http://localhost:5001/'
+                        bat 'curl -f http://localhost:5001/version'
+
                     } else {
+
                         bat 'curl -f http://localhost:5002/health'
                         bat 'curl -f http://localhost:5002/'
+                        bat 'curl -f http://localhost:5002/version'
                     }
                 }
             }
@@ -78,15 +91,20 @@
         stage('Switch Traffic') {
             steps {
                 script {
+
                     def nginxConfig = 'C:\\Users\\arunp\\blue-green-demo\\nginx.conf'
 
                     if (env.TARGET == 'BLUE') {
+
                         bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5002','5001' | Set-Content '${nginxConfig}'\""
+
                     } else {
+
                         bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
                     }
 
                     bat 'docker exec nginx nginx -t'
+
                     bat 'docker exec nginx nginx -s reload'
 
                     echo "Traffic successfully switched to ${env.TARGET}"
@@ -96,15 +114,20 @@
 
         stage('Production Verification') {
             steps {
+
                 echo 'Verifying production traffic...'
 
                 bat 'curl -f http://localhost:8080/health'
+
                 bat 'curl -f http://localhost:8080/'
+
+                bat 'curl -f http://localhost:8080/version'
 
                 /*
                  * INTENTIONAL FAILURE
                  * Only for testing automatic rollback.
                  */
+
                 bat 'exit /b 1'
             }
         }
@@ -145,7 +168,9 @@
                 if (switchHappened) {
 
                     echo "Deployment failed after traffic was switched."
+
                     echo "Starting automatic rollback..."
+
                     echo "Restoring previous environment: ${env.ACTIVE}"
 
                     if (env.ACTIVE == 'BLUE') {
@@ -158,21 +183,26 @@
                     }
 
                     bat 'docker exec nginx nginx -t'
+
                     bat 'docker exec nginx nginx -s reload'
 
                     echo "Rollback completed."
+
                     echo "Production restored to: ${env.ACTIVE}"
 
                 } else {
 
                     echo "Deployment failed before traffic was switched."
+
                     echo "No rollback required."
                 }
             }
         }
 
         success {
+
             echo "Blue-Green deployment completed successfully."
+
             echo "Production environment: ${env.TARGET}"
         }
     }
