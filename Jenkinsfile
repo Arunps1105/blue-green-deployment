@@ -1,4 +1,4 @@
-pipeline {
+ pipeline {
     agent any
 
     environment {
@@ -17,21 +17,31 @@ pipeline {
             steps {
                 script {
 
-                    def response = bat(
-                        script: 'curl -s http://localhost:8080/version',
-                        returnStdout: true
-                    ).trim()
+                    def nginxConfig = 'C:\\Users\\arunp\\blue-green-demo\\nginx.conf'
 
-                    echo "Production version response: ${response}"
+                    def blueResult = bat(
+                        script: "findstr /C:\"5001\" \"${nginxConfig}\"",
+                        returnStatus: true
+                    )
 
-                    if (response.contains('"environment":"GREEN"')) {
-                        env.ACTIVE = 'GREEN'
-                        env.TARGET = 'BLUE'
-                    } else if (response.contains('"environment":"BLUE"')) {
+                    def greenResult = bat(
+                        script: "findstr /C:\"5002\" \"${nginxConfig}\"",
+                        returnStatus: true
+                    )
+
+                    if (blueResult == 0 && greenResult != 0) {
+
                         env.ACTIVE = 'BLUE'
                         env.TARGET = 'GREEN'
+
+                    } else if (greenResult == 0 && blueResult != 0) {
+
+                        env.ACTIVE = 'GREEN'
+                        env.TARGET = 'BLUE'
+
                     } else {
-                        error "Could not determine active environment"
+
+                        error "Could not determine active environment from Nginx configuration"
                     }
 
                     echo "Active environment: ${env.ACTIVE}"
@@ -42,8 +52,11 @@ pipeline {
 
         stage('Build') {
             steps {
+
                 bat 'where docker'
+
                 bat 'docker version'
+
                 bat 'docker build -t %IMAGE% .'
             }
         }
@@ -75,15 +88,55 @@ pipeline {
                     if (env.TARGET == 'BLUE') {
 
                         bat 'curl -f http://localhost:5001/health'
+
                         bat 'curl -f http://localhost:5001/'
+
                         bat 'curl -f http://localhost:5001/version'
 
                     } else {
 
                         bat 'curl -f http://localhost:5002/health'
+
                         bat 'curl -f http://localhost:5002/'
+
                         bat 'curl -f http://localhost:5002/version'
                     }
+                }
+            }
+        }
+
+        stage('Verify Target Environment') {
+            steps {
+                script {
+
+                    if (env.TARGET == 'BLUE') {
+
+                        def response = bat(
+                            script: 'curl -s http://localhost:5001/version',
+                            returnStdout: true
+                        ).trim()
+
+                        echo "BLUE target response: ${response}"
+
+                        if (!response.contains('"environment":"BLUE"')) {
+                            error "BLUE target verification failed"
+                        }
+
+                    } else {
+
+                        def response = bat(
+                            script: 'curl -s http://localhost:5002/version',
+                            returnStdout: true
+                        ).trim()
+
+                        echo "GREEN target response: ${response}"
+
+                        if (!response.contains('"environment":"GREEN"')) {
+                            error "GREEN target verification failed"
+                        }
+                    }
+
+                    echo "Target environment verification successful."
                 }
             }
         }
