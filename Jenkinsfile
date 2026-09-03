@@ -1,4 +1,4 @@
- pipeline {
+pipeline {
     agent any
 
     environment {
@@ -52,11 +52,15 @@
             steps {
                 script {
                     if (env.TARGET == 'BLUE') {
+
                         bat 'docker rm -f blue 2>NUL || exit 0'
                         bat 'docker run -d --name blue -p 5001:5000 %IMAGE%'
+
                     } else {
+
                         bat 'docker rm -f green 2>NUL || exit 0'
                         bat 'docker run -d --name green -p 5002:5000 %IMAGE%'
+
                     }
                 }
             }
@@ -66,11 +70,15 @@
             steps {
                 script {
                     if (env.TARGET == 'BLUE') {
+
                         bat 'curl -f http://localhost:5001/health'
                         bat 'curl -f http://localhost:5001/'
+
                     } else {
+
                         bat 'curl -f http://localhost:5002/health'
                         bat 'curl -f http://localhost:5002/'
+
                     }
                 }
             }
@@ -88,18 +96,14 @@
 
                     } else {
 
-                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
-                    }
+                        bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'"
 
-                    /*
-                     * The configuration file has now been changed.
-                     * Mark traffic as switched so rollback can restore
-                     * the previous environment if anything fails.
-                     */
-                    env.TRAFFIC_SWITCHED = 'true'
+                    }
 
                     bat 'docker exec nginx nginx -t'
                     bat 'docker exec nginx nginx -s reload'
+
+                    env.TRAFFIC_SWITCHED = 'true'
                 }
             }
         }
@@ -137,6 +141,7 @@
                     } else if (env.ACTIVE == 'GREEN') {
 
                         bat "powershell -Command \"(Get-Content '${nginxConfig}') -replace '5001','5002' | Set-Content '${nginxConfig}'\""
+
                     }
 
                     bat 'docker exec nginx nginx -t'
@@ -158,6 +163,7 @@
 
             echo "Blue-Green deployment completed successfully."
             echo "Production environment: ${env.TARGET}"
+
         }
     }
 }
