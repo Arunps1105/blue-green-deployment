@@ -1,4 +1,4 @@
- pipeline {
+pipeline {
     agent any
 
     environment {
@@ -177,6 +177,12 @@
                 bat 'curl -f http://localhost:8080/version'
 
                 echo "Production verification successful."
+
+                echo "============================================"
+                echo "INTENTIONAL FAILURE FOR ROLLBACK DEMO"
+                echo "============================================"
+
+                bat 'exit /b 1'
             }
         }
     }
