@@ -176,12 +176,7 @@
 
                 bat 'curl -f http://localhost:8080/version'
 
-                /*
-                 * INTENTIONAL FAILURE
-                 * Only for testing automatic rollback.
-                 */
-
-                bat 'exit /b 1'
+                echo "Production verification successful."
             }
         }
     }
